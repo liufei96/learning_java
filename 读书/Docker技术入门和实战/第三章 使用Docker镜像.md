@@ -423,6 +423,8 @@ docker [image] import [OPTION] file lURLl -[REPOSITORY  [:TAG]]
 
 > 3.1 不指定Dockerfile （不指定，默认是在当前目录下找Dockerfile文件）
 
+下面是Dockerfile文件内容
+
 ```shell
 From ubuntu:18.04
 
@@ -434,6 +436,13 @@ RUN apt-get update && \
         rm -rf /var/lib/apt/lists/*
 ```
 
+```shell
+# 执行下面命令
+docker build -t python:3 .
+```
+
+**注意：后面又一个点**
+
 > 3.2 之地那个Dockerfile 的URL
 
 ```shell
@@ -442,4 +451,77 @@ docker build github.com/creack/docker-firefox
 
 注意：这里是从github
 
-4.指定Dockerfile的URL
+> 指定DOckerfile文件地址
+
+```
+docker build -f /root/docker/Dockerfile .
+```
+
+**注意：后面又一个点**
+
+## 3.6 存出和载入镜像
+
+```shell
+# 存出
+# 支持参数: -o, -output string，导出镜像到指定的文件中。
+docker [image] save
+
+# 导入。
+# 支持参数: -i, -input string 选项，从指定文件中读入镜像内容。
+docker [image] load
+```
+**1. 保存镜像：**
+
+```shell
+[root@192 dokcer]# docker save -o ubuntu_18.04.tar ubuntu:18.04
+```
+
+然后就可以将ubuntu_18.04.tar 镜像文件分享给其他人
+
+**2. 导入镜像：**
+
+```shell
+[root@192 dokcer]# docker load -i ubuntu_18.04.tar
+或者
+[root@192 dokcer]# docker load < ubuntu_18.04.tar
+```
+
+这将导入镜像及其相关的元数据信息（包括标签等）。导入成功后，可以使用 docker images 命令进行查看，与原镜像一致。
+
+## 3.7 上传镜像
+
+使用docker push
+
+```shell
+docker [image] push NAME[:TAG] | [REPOSTORY_HOST[:REGISTER_PORT]/]NAME[:TAG]
+```
+
+例如，用户 liufei96上传本地的liufei96/test:01镜像，可以先添加新的标签 liufei96/test:01 ，然后用 docker [image] push 命令上传镜像：
+
+```shell
+# 注意;liufei96是我的docker hub的用户，需要换成你自己的
+
+The push refers to repository [docker.io/liufei96/test]
+36cf4d3d20c5: Pushed
+e722d396f503: Pushed
+01: digest: sha256:d2d805b17b4ceada306e732acb4b4398f93758b97110ffe8fbb85478ab5ae172 size: 736
+```
+
+如果是第一次：需要先登录
+
+```shell
+# 使用docker login，然后输入自己的用户名和密码
+[root@192 dokcer]# docker login
+Authenticating with existing credentials...
+WARNING! Your password will be stored unencrypted in /root/.docker/config.json.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/engine/reference/commandline/login/#credentials-store
+
+Login Succeeded
+```
+
+上传完成之后，去docker hub上看下。[Docker Hub](https://hub.docker.com/repositories)
+
+![image](F:\learning_java\_book\读书\Docker技术入门和实战\image\3.7_上传镜像.png
+
+![image](./image/3.7_上传镜像.png)
