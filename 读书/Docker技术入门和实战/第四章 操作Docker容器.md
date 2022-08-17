@@ -149,3 +149,193 @@ e313b4720022   ubuntu          "/bin/bash -c 'while…"   24 seconds ago   Up 22
 ...
 ```
 
+# 4.2 停止容器
+
+主要介绍 Docker容器的 p'ause/unpause op prune 子命令。
+
+## 1.暂停容器
+
+docker pause CONTAINER 命令来暂 停一个运行中的容器。
+
+例如，启动一个容器，并将其暂停：
+
+```shell
+# -rm=true|false 容器推出后自动删除，不能跟-d 同时使用
+[root@192 ~]# docker run --name test -rm -it ubuntu bash
+root@670420fa2c34:/#
+
+# 在打开一个终端窗口
+[root@192 ~]# docker pause test
+test
+[root@192 ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND   CREATED          STATUS                   PORTS     NAMES
+670420fa2c34   ubuntu    "bash"    29 seconds ago   Up 27 seconds (Paused)             test
+```
+
+处与 paused 状态的容器，可以使用 docker   unpause CONTAINER  命令来恢复到运行状态。
+
+## 2.终止容器
+
+docker [container]  stop [-t |--time[=10]] [CONTAINER...]
+
+该命令会首先向容器发送 STGTERM 信号，等待一段超时时间后（默认为 10 秒），再发 SIGKILL 信号来终止容器:
+
+```shell
+# 默认等待时间是 10s
+[root@192 ~]# docker stop test
+test
+
+# 加上等待时间
+[root@192 ~]# docker stop -t 3 test
+test
+
+```
+
+此时，执行 docker container prune 命令，会自动清除掉所有处于停止状态的容器。
+
+```shell
+[root@192 ~]# docker container prune
+WARNING! This will remove all stopped containers.
+Are you sure you want to continue? [y/N] y
+Deleted Containers:
+670420fa2c345a0bb346caaf1534a48612b925b6ef03993771ee54c2b6b3e424
+e313b472002228a1a8e55b2c396798d106c3adc685172da97b4351cc49952eb0
+5847d9abb31f887c4447d6fcb41c9ac0f4f704fd12744d8f0e95c9548eb87f24
+5bb3349f482bcb0537a83ee35c7ade6faee64956e1b37b038d1f2727a2db2cad
+46d226765327ec8742e5d847a0fcfc95b2cfc56fb35f465090031ca8d802af97
+54b471bdb24f985043645377328de83ae078ef0d67674771b17799ebb26ef39a
+8639d03debf4345a409450b48a2c914a9ab054c06f98c9e09ed5714ca2a07a4c
+c45fa8273756df28c4ac53b321843d08789539f15b90bf65f50beb6a341fcfb8
+c3c8f3c3007e3b94f6259b8b60ae7aab0a452b0c3091001bec1bac4fda543d16
+a3e96c49d66cc31c449d2deefcb01339f6ac990ba2dd2ff97ed88a84b3d03e82
+
+Total reclaimed space: 42.81MB
+
+# 再次通过docker ps -a 所有的容器，发现是空
+[root@192 ~]# docker ps -a
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+```
+
+此外，还可以通过 docker [container] kill 直接发送 SIGKILL 信号来强行终止 容器。
+
+当Docker 容器中指定的应用终结时，容器也会自动终止。例如，对于上一章节中只启 动了一个终端的容器，用户通过 exit 命令或 Ctrl+d 来退出终端时，所创建的容器立刻终 止，处于 stopped 状态。
+
+可以用 docker ps  -qa 命令看到所有容器的 ID 。例如：
+
+```shell
+[root@192 ~]# docker ps -qa
+973d9795c28d
+```
+
+处于终止状态的容器，可以通过 docker [ container] start 命令来重新启动：
+
+```shell
+[root@192 ~]# docker start 973d9795c28d
+973d9795c28d
+
+
+[root@192 ~]# docker ps  -a
+CONTAINER ID   IMAGE     COMMAND   CREATED         STATUS          PORTS     NAMES
+973d9795c28d   ubuntu    "bash"    4 minutes ago   Up 15 seconds             loving_lederberg
+```
+
+docker [ container] restart 命令会将一个运行态的容器先终止，然后再重新 启动：
+
+```shell
+
+[root@192 ~]# docker ps -a
+CONTAINER ID   IMAGE     COMMAND   CREATED         STATUS              PORTS     NAMES
+973d9795c28d   ubuntu    "bash"    5 minutes ago   Up About a minute             loving_lederberg
+[root@192 ~]# docker restart 973d9795c28d
+973d9795c28d
+[root@192 ~]# docker ps -a
+CONTAINER ID   IMAGE     COMMAND   CREATED         STATUS         PORTS     NAMES
+973d9795c28d   ubuntu    "bash"    5 minutes ago   Up 5 seconds             loving_lederberg
+
+```
+
+# 4.3 进入容器
+
+在使用－d 参数时，容器启动后会进入后台，用户无法看到容器中的信息，也无法进行 操作。 
+
+这个时候如果需要进入容器进行操作，推荐使用官方的 attach 或 exit 命令。
+
+## 1. attach命令
+
+attach Docker 自带的命令，命令格式为：
+
+docker [container] attach [--detach-keys [= []]]  [--no-stdin] [--sig-proxy[ ＝true]] CONTAINER
+
+这个命令支持三个主要选项：
+
+-  --detach-keys [=[]]：指定退出 attach 模式的快捷键序列，默认是 CTRL-p CTRL-q;
+- \- -no-stdin＝true I false: 是否关闭标准输入，默认是保持打开；
+- --sig-proxy＝true I false: 是否代理收到的系统信号给应用进程，默认为 true
+
+下面示例如何使用该命令：
+
+```shell
+
+[root@192 ~]# docker run -itd ubuntu
+f774df459e7c2b518ed8e113fe5a821ad16dc1aa568608fdae19e5746df86211
+
+[root@192 ~]# docker ps -a
+CONTAINER ID   IMAGE     COMMAND   CREATED          STATUS         PORTS     NAMES
+f774df459e7c   ubuntu    "bash"    7 seconds ago    Up 5 seconds             stupefied_meninsky
+
+[root@192 ~]# docker attach stupefied_meninsky
+root@f774df459e7c:/#
+```
+
+**然而使用 attach 命令有时候并不方便。当多个窗口同时 attach 到同一个容器的时 候，所有窗口都会同步显示；当某个窗口因命令阻塞时，其他窗口也无法执行操作了。**
+
+## 2.exec 命令
+
+从Docker 1.3.0 版本起， Docker 提供了一个更加方便的工具 exec 命令，可以在运行 中容器内直接执行任意命令。
+
+该命令的基本格式为：
+
+docker [container] exec [-di --detach] [--de ach-keys [= []]] [-i 1--interac ive] [--privileged] ［一t -－tty] [-ul--user [=USER]] CONTAINER COMMAND [ARG... ]
+
+比较重要的参数有：
+
+- -d, --detach ：在容器中后台执行命令；
+-  --detach-keys=”“ ：指定将容器切回后台的按键；
+- \- e, - - env= []：指定环境变量列表；
+- -i, --interactive ＝ true I false: 打开标准输入接受用户输入命令，默认值为 false; 
+- --privileged＝true I false: 是否给执行命令以高权限，默认值为 false;
+- -t， --tty ＝true I false: 分配伪终端，默认值为 false;
+- -u, --user="": 执行命令的用户名或 ID。
+
+例如，进入到刚创建的容器中，并启动一个 bash：
+
+```shell
+[root@192 ~]# docker exec -it f774df459e7c /bin/bash
+root@f774df459e7c:/#
+
+# 此时要想推出终端
+#1. exit 退出终端会导致容器退出
+#2. Ctrl + P + Q 仅退出终端
+```
+
+可以看到会打开一个新的 bash 终端，在不影响容器内其他应用的前提下，用户可以与 容器进行交互。
+
+> 注意：通过指定－t参数来保持标准输入打开，并且分配一个伪终端。通过 exec 命令对 容器执行操作是最为推荐的方式。
+
+进一步地，可以在容器中查看容器中的用户和进程信息：
+
+```shell
+
+root@f774df459e7c:/# w
+ 14:47:08 up 55 min,  0 users,  load average: 0.08, 0.03, 0.05
+USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT
+root@f774df459e7c:/# ps -ef
+UID         PID   PPID  C STIME TTY          TIME CMD
+root          1      0  0 14:43 pts/0    00:00:00 bash
+root          9      0  0 14:44 pts/1    00:00:00 /bin/bash
+root         17      0  0 14:47 pts/2    00:00:00 /bin/bash
+root         26     17  0 14:47 pts/2    00:00:00 ps -ef
+```
+
+# 4.4 删除容器
+
