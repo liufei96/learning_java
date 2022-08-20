@@ -339,3 +339,245 @@ root         26     17  0 14:47 pts/2    00:00:00 ps -ef
 
 # 4.4 删除容器
 
+可以使用 docker [container] rm 命令来删除处于终止或退出状态的容器，命令格式为 docker [container] rm [-fl--force] [-11--link] [-vl--volumes]CONTAINER  [CONTAINER...]。
+
+主要支持的选项包括：
+
+- -f , --fore=false: 是否强行终止并删除一个运行中的容器；
+- -l, --link=false: 删除容器的链接，但保留容器
+- -v, --volumes=false: 删除容器挂在的数据卷。
+
+例如，查看处与终止状态的容器，并删除：
+
+```shell
+[root@192 ~]# docker ps -a
+CONTAINER ID   IMAGE     COMMAND   CREATED        STATUS                            PORTS     NAMES
+973d9795c28d   ubuntu    "bash"    24 hours ago   Exited (137) About a minute ago             loving_lederberg
+[root@192 ~]# docker rm 973d9795c28d
+973d9795c28d
+```
+
+**默认情况下， docker rm 命令只能删除已经处于终止或退出状态的容器，并不能删除 还处千运行状态的容器。**
+
+```shell
+[root@192 ~]# docker rm f774df459e7c
+Error response from daemon: You cannot remove a running container f774df459e7c2b518ed8e113fe5a821ad16dc1aa568608fdae19e5746df86211. Stop the container before attempting removal or force remove
+```
+
+如果要直接删除一个运行中的容器，可以添加－ 参数。 Docker 会先发送 SIGKILL 信号给容器，终止其中的应用，之后强行删除：
+
+```shell
+[root@192 ~]# docker rm -f f774df459e7c
+f774df459e7c
+```
+
+# 4.5 导人和导出容器
+
+某些时候，需要将容器从一个系统迁移到另外一个系统，此时可以使用 Docker 的导入 和导出功能，这也是 Docker 自身提供的一个重要特性。
+
+## 1．导出容器
+
+导出容器是指，导出一个巳经创建的容器到一个文件，**不管此时这个容器是否处于运行 状态**。可以使用 docker [container] export 命令，该命令格式为：
+
+```shell
+docker [container] export [-ol--output[=""l CONTAINER
+```
+
+其中，可以通过－o 选项来指定导出的 tar 文件名，也可以直接通过重定向来实现。 首先，查看所有的容器，如下所示：
+
+```shell
+[root@192 ~]# docker ps -a
+CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS                      PORTS     NAMES
+92c12ef9cdda   ubuntu    "bash"                   4 seconds ago    Exited (0) 3 seconds ago              vigorous_bhabha
+23e89cb7de5a   ubuntu    "/bin/echo 'Hello wo…"   18 seconds ago   Exited (0) 17 seconds ago             quirky_driscoll
+```
+
+分别导出 92c12ef9cdda 容器 和 23e89cb7de5a 容器到 test_for_run.tar 文件和 test_for_stop.tar 文件
+
+```shell
+
+[root@192 ~]# docker export -o test_for_run.tar 92c12ef9cdda
+[root@192 ~]# ll
+总用量 78500
+-rw-r--r--. 1 root root        0 6月  21 23:22 -
+-rw-------. 1 root root     1204 6月  21 23:05 anaconda-ks.cfg
+drwxr-xr-x. 2 root root       48 8月  14 23:18 dokcer
+-rw-r--r--. 1 root root    20009 6月   7 18:08 index.html
+-rw-------. 1 root root 80355840 8月  18 22:49 test_for_run.tar
+
+
+[root@192 ~]# docker export 23e89cb7de5a > test_for_stop.tar
+[root@192 ~]# ll
+总用量 156976
+-rw-r--r--. 1 root root        0 6月  21 23:22 -
+-rw-------. 1 root root     1204 6月  21 23:05 anaconda-ks.cfg
+drwxr-xr-x. 2 root root       48 8月  14 23:18 dokcer
+-rw-r--r--. 1 root root    20009 6月   7 18:08 index.html
+-rw-------. 1 root root 80355840 8月  18 22:49 test_for_run.tar
+-rw-r--r--. 1 root root 80355840 8月  18 22:50 test_for_stop.tar
+```
+
+## 2. 导入容器
+
+使用docker [container] import 命令导入变成镜像，该命令格式为：
+
+```shell
+docker import [-c]--change[=[]] [-m]--message[=MESSAGE] file|URL|-[REPOSITORY[:TAG]]
+```
+
+用户可以通过－c, --change=[] 选项在导入的同时执行对容器进行修改的 Dockerfile 指令（可参考后续相关章节）。
+
+```shell
+[root@192 ~]# docker import test_for_run.tar test/ubuntu:v1.0
+sha256:36cf845587aa1acff94825789720ca63875387bb9e63c430bc41dafb1d67dcc7
+
+
+[root@192 ~]# docker images
+REPOSITORY               TAG       IMAGE ID       CREATED         SIZE
+test/ubuntu              v1.0      36cf845587aa   8 seconds ago   77.8MB
+```
+
+过使用docker load 命令来导入一个镜像 文件，与 docker [container] import命令十分类似。
+
+实际上，既可以使用 docker load 命令来导入镜像存储文件到本地镜像库，也可以使用 docker [container] import命令来导入一个容器快照到本地镜像库。
+
+区别在于：
+
+- 容器快照文件将丢弃所有的历史记录和元数据信息（即仅保存容器当时的快照状态）， 
+- 而镜像存储文件将保存完整记录，体积更大。
+- 此外，从容器快照文件导入时可以重新指定标 签等元数据信息。
+
+# 4.6 查看容器
+
+主要介绍 Docker 容器的 inspect、top和stats 子命令
+
+## 1.查看容器详情
+
+查看容器详情可以使用 docker container inspect [OPTIONS] CONTAINER  [CONTAINER.. ．]子命令。
+
+例如，查看某容器的具体信息，会以 json 格式返回包括容器 Id 、创建时间、路径、状态、镜像、配置等在内的各项信息：
+
+```shell
+[root@192 ~]# docker container inspect 92c12ef9cdda
+[
+    {
+        "Id": "92c12ef9cdda9fdf789cedaf5a10234a403acc69603f063a2267873536cc3f29",
+        "Created": "2022-08-18T14:46:50.778727045Z",
+        "Path": "bash",
+        "Args": [],
+        "State": {
+            "Status": "exited",
+            ...
+        },
+      ...
+    }
+]
+```
+
+## 2. 查看容器内进程
+
+查看容器内进程可以使用 docker [container] top [OPTTONS]  CONTAINER  [CONTAINER.. ．]子命令。
+
+这个子命令类似于 Linux 系统中的 top 命令，会打印出容器内的进程信息，包括 PID 用户、时间、命令等。例如，查看某容器内的进程信息，命令如下：
+
+```shell
+
+[root@192 ~]# docker top 89c5d2a949cc
+UID                 PID                 PPID                C                   STIME               TTY                 TIME                CMD
+root                5061                5042                0                   23:15               ?                   00:00:00            /bin/bash -c while true;do echo hello world; sleep 1;done
+root                5157                5061                0                   23:15               ?                   00:00:00            sleep 1
+
+```
+
+## 3.查看统计信息
+
+查看统计信息可以使用 docker [container] stats [OPTIONS]  [CONTAINER... ]  子命令，会显示 CPU 、内存、存储、网络等使用情况的统计信息。
+
+支持选项包括：
+
+- -a, -all : 输出所有容器统计信息，默认仅在运行中；
+- -format string ：格式化输出信息；
+-  -no-stream: 不持续输出，默认会自动更新持续实时结果；
+-  -no-trunc:  不截断输出信息。
+
+例如，查看当前运行中容器的系统资源使用统计：
+
+```shell
+[root@192 ~]# docker stats 89c5d2a949cc
+CONTAINER ID   NAME               CPU %     MEM USAGE / LIMIT   MEM %     NET I/O     BLOCK I/O   PIDS
+89c5d2a949cc   interesting_bell   0.19%     460KiB / 7.093GiB   0.01%     656B / 0B   0B / 0B     2
+```
+
+# 4.7 其他容器命令
+
+主要介绍 Docker 容器的 cp、diff、port 和 update 子命令。
+
+## 1. 复制文件
+
+container cp 命令支持在容器和主机之间复制文件。命令格式为 docker [container] cp [OPTIONS] CONTAINER:SRC_PATH DEST_PATH _PATHj- 。支持的选项包括：
+
+- -a, -archive：打包模式，复制文件会带有原始的 uid/gid 信息；
+- -L，-follow-link：跟随软连接。当原路径为软连接时，默认只复制链接信息， 使用该选项会复制链接的目标内容。
+
+例如，将本地的路径 data 复制到test容器的 /tmp 路径下：
+
+```shell
+# 将data目录复制到/tmp目录下
+[root@192 ~]# docker cp data/ 89c5d2a949cc:/tmp/
+```
+
+## 2. 查看变更
+
+container diff 查看容器内文件系统的变更。命令格式为 docker [container] diff CONTAINER
+
+例如，查看 89c5d2a949cc 容器内的数据修改：
+
+```shell
+[root@192 ~]# docker diff 89c5d2a949cc
+C /tmp
+A /tmp/data
+A /tmp/data/test.txt
+```
+
+## 3. 查看端口映射
+
+container port 命令可以查看容器的端口映射情况。命令格式为 docker container port CONTAINER· [PRIVATE_PORT [/PROTO]] 。例如，查看 aa511aa1460f  容器的端口映射情况：
+
+```shell
+[root@192 ~]# docker port aa511aa1460f
+6379/tcp -> 0.0.0.0:6379
+6379/tcp -> :::6379
+```
+
+## 4. 更新配置
+
+ container update 命令可以更新容器的一些运行时配置，主要是一些资源限制份额。 命令格式为 docker [con tainer] update [OPTIONS] CONTAINER [CONTAINER... ]。
+
+支持的选项包括：
+
+- -blkio-weigh uint6 ：更新块 IO 限制， 10~lOOO ，默认值为0 ，代表着无限制；
+- -cpu-period int：限制 CPU 调度器 CFS (Completely Fair Scheduler) 使用时间， 单位为微秒，最小 1000;
+- -cpu-quota int：限制 CPU 调度器 CFS 配额，单位为微秒，最小 1000;
+- -cpu-rt-period int：限制 CPU 调度器的实时周期，单位为微秒；
+-  -cpu-rt-runtime int：限制 CPU 调度器的实时运行时，单位为微秒；
+- -c, -cpu-shares int：限制CPU使用份额；
+- -cpus decimal：限制CPU 个数
+- -cpuset-cpus string：允许使用的CPU核，如 0-3, 0,1; 
+- -cpuset-mems string：允许使用的内存块，如 0-3, 0,1;
+- -kernel-memory bytes: 限制使用的内核内存；
+- -m, -memory bytes ：限制使用的内存；
+- -memory-reservation bytes: 内存软限制；
+-  -memory-swap bytes ：内存加上缓存区的限制，－l 表示为对缓冲区无限制；
+- -restart string: 容器退出后的重启策略。
+
+例如，限制总配额为1 秒，容器迳吐所占用时间为 10% ，代码如下所示：
+
+```shell
+
+[root@192 ~]# docker update --cpu-quota 1000000 89c5d2a949cc
+89c5d2a949cc
+
+[root@192 ~]# docker update --cpu-period 100000 89c5d2a949cc
+89c5d2a949cc
+```
+
