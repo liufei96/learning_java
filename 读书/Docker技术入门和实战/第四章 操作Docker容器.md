@@ -289,7 +289,7 @@ root@f774df459e7c:/#
 
 **然而使用 attach 命令有时候并不方便。当多个窗口同时 attach 到同一个容器的时 候，所有窗口都会同步显示；当某个窗口因命令阻塞时，其他窗口也无法执行操作了。**
 
-## 2.exec 命令
+## 2. exec 命令
 
 从Docker 1.3.0 版本起， Docker 提供了一个更加方便的工具 exec 命令，可以在运行 中容器内直接执行任意命令。
 
@@ -325,7 +325,6 @@ root@f774df459e7c:/#
 进一步地，可以在容器中查看容器中的用户和进程信息：
 
 ```shell
-
 root@f774df459e7c:/# w
  14:47:08 up 55 min,  0 users,  load average: 0.08, 0.03, 0.05
 USER     TTY      FROM             LOGIN@   IDLE   JCPU   PCPU WHAT
@@ -375,7 +374,7 @@ f774df459e7c
 
 某些时候，需要将容器从一个系统迁移到另外一个系统，此时可以使用 Docker 的导入 和导出功能，这也是 Docker 自身提供的一个重要特性。
 
-## 1．导出容器
+## 1.导出容器
 
 导出容器是指，导出一个巳经创建的容器到一个文件，**不管此时这个容器是否处于运行 状态**。可以使用 docker [container] export 命令，该命令格式为：
 
@@ -474,7 +473,7 @@ test/ubuntu              v1.0      36cf845587aa   8 seconds ago   77.8MB
 ]
 ```
 
-## 2. 查看容器内进程
+## 2.查看容器内进程
 
 查看容器内进程可以使用 docker [container] top [OPTTONS]  CONTAINER  [CONTAINER.. ．]子命令。
 

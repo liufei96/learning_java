@@ -226,3 +226,4 @@ Status: Downloaded newer image for 192.168.245.129:5000/test:latest
 > 如果要使用安全证书，用户也可以从较知名的 CA 服务商（如 verisign) 申请公开的 SSL/TLS 证书，或者使用 OpenSSL 等软件来自行生成。
 
 **除了官方的 registry 项目外，用户还可以使用其他的开源方案（例如 nexus) 来搭建私 有化的容器镜像仓库。**
+
