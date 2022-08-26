@@ -269,3 +269,338 @@ RUN pwd
 ### 10. ONBUILD
 
 指定当基于所生成镜像创建子镜像时，自动执行的操作指令。
+
+格式为 ONBUILD [ INSTRUCTION]。
+
+例如，使用如下的 Dockerfile 创建父镜像 ParenImage, 指定 ONBUILD 指令：
+
+```dockerfile
+# Dockerfile for Paren七工 mage
+[...] 
+ONBUILD ADD . /app/src 
+ONBUILD RUN /usr/local/bin/python-build --dir /app/src 
+[...] 
+```
+
+使用 docker build 命令创建子镜像 ChildImage (FROM ParenImage) ，会首 先执行 FarentImage 中配置的 ONBUILD 指令：
+
+```dockerfile
+# Dockerfile from ChildImage
+FROM ParentImage
+```
+
+等价于在 ChildImage Dockerfile 中添加了如下指令：
+
+```dockerfile
+#Automa ically run he following when building Childimage 
+ADD . /app/src
+RUN /usr/local/bin/python-build --dir /app/src
+...
+```
+
+由于 ONBUILD 指令是隐式执行的，推荐在使用它的镜像标签中进行标注，例如ruby:2.1- onbuild
+
+**ONBUILD 指令在创建专门用于自动编译、检查等操作的基础镜像时，十分有用。**
+
+### 11. STOPSINGAL
+
+指定所创建镜像启动的容器接收退出的信号值：
+
+STOPSIGNAL signal
+
+### 12. HEALTHCHECK
+
+配置所启动容器如何进行健康检查（如何判断健康与否），自 Docker 1.12 开始支持。
+
+格式有两种：
+
+- HEALTHCHECK [OPTIONS] CMD command：根据所执行命令返回值是否为0来判断；
+- HEALTHCHECK NONE：禁止基础镜像中的健康检查。
+
+OPTION支持如下参数：
+
+- -interval=DURATION（default：30s）：过多久检查一次；
+- -timeout=DURATION（default：30s）：每次检查等待结果的超时；
+- -retries=N (defaut: 3) ：如果失败了，重试几次才最终确定失败。
+
+### 13. SHELL
+
+指定其他命令使用 shell 时的默认 shell 类型：
+
+```dockerfile
+SHELL  ["executable",  "parameters"]
+```
+
+默认值为 ["bin/bash",  "-c"]
+
+注意：对于 Windows 系统， Shel1 路径中使用了“\”作为分隔符，建议在 Dockerfile 开头添 加＃escape=‘ 来指定转义符。
+
+## 8.2.2 操作指令
+
+### 1. RUN
+
+运行指定命令。
+
+格式为 RUN < command> 或 RUN ["executable", "paraml", "param2"] 。注 意后者指令会被解析为 JSON 数组，因此必须用双引号。前者默认将在 shell 终端中运行命 令，即／bin/sh -c ；后者则使用 exec 执行，不会启动 shell 环境。
+
+指定使用其他终端类型可以通过第二种方式实现，例如 RUN
+
+```dockerfile
+RUN ["/bin/bash", "-c", "echo hello"]
+```
+
+每条 RUN 指令将在当前镜像基础上执行指定命令，并提交为新的镜像层。当命令较长时 可以使用＼来换行。例如：
+
+```dockerfile
+RUN apt-get update \
+	&& apt-get install -y zliblg-dev libbz2-dev \
+	&& rm -rf /var/cache/apt \
+	&& rm -rf /var/lib/apt/lists*/
+```
+
+### 2. CMD
+
+CMD 指令用来指定启动容器时默认执行的命令。
+
+支持三种格式：
+
+- CMD ["executable", "param1", "param2"]：相当于执行executable param1 param2，推荐方式；
+- CMD command param1 param2：在默认的Shell中执行，提供给需要交换的应用；
+- CMD ["param1", "param2"]：提供给ENTRYPOINT的默认参数。
+
+**每个 Dockerfile 只能有一条 CMD 命令。如果指定了多条命令，只有最后一条会被执行。**
+
+如果用户启动容器时候手动指定了运行的命令（作为 run 命令的参数），则会覆盖掉 CMD 指定的命令。
+
+### 3. ADD
+
+添加内容到镜像。 
+
+格式为 ADD  <src> <dest>。
+
+该命令将复制指定的 <src> 路径下内容到容器中的 <dest> 路径下。
+
+其中 <src> 可以是Dockerfile 所在目录的一个相对路径（文件或目录）；也可以是一个 URL ；还可以是一个tar文件（自动解压为目录） <dest> 可以是镜像内绝对路径，或者相 对于工作目录 (WORKDIR) 的相对路径。
+
+路径支持正则格式，例如：
+
+```dockerfile
+ADD  *.c /code/
+```
+
+### 4. COPY
+
+复制内容到镜像。
+
+格式为CPOPY <src> <dest>。
+
+复制本地主机的  <src>（为 Dockerfile 所在目录的相对路径，文件或目录）下内容到镜 像中的 <dest>。目标路径不存在时，会自动创建。
+
+路径同样支持正则格式。
+
+COPY 与 ADD 指令功能类似，当使用本地目录为源目录时，推荐使用 COPY。
+
+# 8.3 创建镜像
+
+编写完成 Dockerfile 之后，可以通过 docker [image] build 命令来创建镜像。
+
+基本的格式为 docker build [OPTIONS]  PATH I URL －。
+
+该命令将读取指定路径下（包括子目录）的 Dockerfile, 并将该路径下所有数据作为上下文 (Context) 发送给 Docker 服务端。 Docker 服务端在校验 Dockerfile 格式通过后，逐条执行 其中定义的指令，碰到 ADD、COPY 、RUN 指令会生成一层新的镜像。最终如果创建镜像成功，会返回最终镜像的ID。
+
+如果上下文过大，会导致发送大量数据给服务端，延缓创建过程。因此除非是生成镜像 所必需的文件，不然不要放到上下文路径下。如果使用非上下文路径下的 Dockerfile, 可以 通过 -f 选项来指定其路径。
+
+要指定生成镜像的标签信息，可以通过-t 选项。该选项可以重复使用多次为镜像一次添 加多个名称。
+
+例如，上下文路径为 /tmp/docker_ builder/ ，并且希望生成镜像标签为 builder/first_image: 1.0.0,  可以使用下面的命令：
+
+```dockerfile
+$ docker build -t builder/first_image:1.0.0 /tmp/docker_builder/
+```
+
+## 8.3. 1 命令选项
+
+docker [image] build 命令支持一系列的选项，可以调整创建镜像过程的行为，参 见表 8-2
+
+| 选项                   | 说明                                     |
+| ---------------------- | ---------------------------------------- |
+| --add-host list        | 添加自定义的主机名到 IP 的映射           |
+| -build-arg list        | 添加创建时的变量                         |
+| -cache-from strings    | 使用指定镜像作为缓存源                   |
+| -cgroup-parent string  | 继承的上层 cgroup                        |
+| -compress              | 使用 gzip 来压缩创建上下文数据           |
+| -cpu-period int        | 分配的 CFS 调度器时长                    |
+| -cpu-quo int           | CFS 调度器总份额                         |
+| -c, -cpu-shares int    | CPU 权重                                 |
+| -cpuset-cpus string    | 多CPU允许使用CPU                         |
+| -cpuset-mems string    | 多CPU 允许使用的内存                     |
+| -disable-content-trust | 不进行镜像校验，默认为真                 |
+| -f, -files string      | Dockerfile名称                           |
+| -force-rm              | 总是删除中间过程的容器                   |
+| -iidfile string        | 将镜像 ID 写入到文件                     |
+| -isolations string     | 容器的隔离机制                           |
+| -label list            | 配置镜像的元数据                         |
+| -m, -memory bytes      | 限制使用内存量                           |
+| -memory-swap bytes     | 限制内存和缓存的总批                     |
+| -networks string       | 指定 RUN 命令时的网络模式                |
+| -no-cache              | 创建镜像时不适用缓存                     |
+| -platforms string      | 指定平台类型                             |
+| -pull                  | 总是尝试获取镜像的最新版本               |
+| -q, -quiet             | 不打印创建过程中的日志信息               |
+| -rm                    | 创建成功后自动删除中间过程容器，默认为真 |
+| -security-opt strings  | 指定安全相关的选项                       |
+| -shm-size bytes        | /dev/shm 的大小                          |
+| -stream                | 持续获取创建的上下文                     |
+| -t, -tag list          | 指定镜像的标签列表                       |
+| -target string         | 指定创建的目标阶段                       |
+| -ulimit ulimit         | 指定 ulimt的配置                         |
+
+## 8.3.2 选择父镜像
+
+大部分情况下，生成新的镜像都需要通过 FROM 指令来指定父镜像。父镜像是生成镜像 的基础，会直接影响到所生成镜像的大小和功能。
+
+用户可以选择两种镜像作为父镜像，一种是所谓的基础镜像 (baseimage) ，另外一种是 普通的镜像（往往由第三方创建，基千基础镜像）。
+
+基础镜像比较特殊，其 Dockerfile 中往往不存在 FROM 指令，或者基于 scratch 镜像 (FROM scratch) ，这意味着其在整个镜像树中处于根的位置。
+
+下面的 Dockerfile 定义了一个简单的基础镜像，将用户提前编译好的二进制可执行文件 binary 复制到镜像中，运行容器时执行 binary 命令：
+
+```dockerfile
+FROM scratch
+ADD binary /
+CMD ["/binary"]
+```
+
+普通镜像也可以作为父镜像来使用，包括常见的 busybox debian ubuntu 等。 Docker 不同类型镜像之间的继承关系如图 8-1 所示。
+
+## 8.3.3 使用.dockerignore 文件
+
+可以通过.dockerignore 文件（每一行添加一条匹配模式）来让 Docker 忽略匹配路 径或文件，在创建镜像时候不将无关数据发送到服务端。
+
+例如下面的例子中包括了 行忽略的模式（第一行为注释）：
+
+```dockerfile
+#.dockerignore 文件中可以定义忽略模式
+*/temp*
+*/*/tmp/*
+tmp?
+~*
+Dockerfile
+!README.md
+```
+
+
+
+- dockerignore 文件中模式语法支持 Golang 风格的路径正则格式：
+- “*" 表示任意多个字符;
+- ”?” 代表单个字符；
+- "!" 表示不匹配（即不忽略指定的路径或文件））
+
+![image-20220826222645387](.\image\image-20220826222645387.png)
+
+## 8.3.4 多步骤创建
+
+自17.05 版本开始， Docker 支持多步骤镜像创建 (Multi-stage build) 特性，可以精简最 终生成的镜像大小。
+
+对于需要编译的应用（如 C、Go 或 Java 语言等）来说，通常情况下至少需要准备两个 环境的 Docker 镜像：
+
+- 编译环境镜像：包括完整的编译引擎、依赖库等，往往比较庞大。作用是编译应用为 二进制文件；
+- 运行环境镜像：利用编译好的二进制文件，运行应用，由于不需要编译环境，体积比 较小。
+
+使用多步骤创建，可以在保证最终生成的运行环境镜像保持精简的情况下，使用单一的 Dockerfile, 降低维护复杂度。
+
+以 Go 语言应用为例。创建干净目录，进入到目录中，创建 main.go 文件，内容为：
+
+```go
+// main.go will ou put "Hello, Docker" 
+package main
+
+import (
+	"fmt"
+)
+
+func main() {
+    fmt.Println("Hello, Docker")
+}
+```
+
+创建 Dockerfile, 使用 golang:1.9 镜像编译应用二进制文件为 app, 使用精简的镜像 alpine:latest 作为运行环境。 Dockerfile 完整内容为：
+
+```dockerfile
+FROM golang:1.9 as builder # defina stage name as builder
+RUN mkdir -p /go/src/test
+WORKDIR /go/src/test
+COPY main.go .
+RUN CGO_ENABLED=0 GOOS=linux go build -o app .
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=builder /go/src/test/app . # copy file from he builders age
+CMD ["./app"]
+```
+
+执行如下命令创建镜像，并运行应用：
+
+```shell
+[root@192 ~]# docker build -t yeasy/test-multistage:latest .
+Sending build context to Docker daemon  226.3MB
+Step 1/10 : FROM golang:1.9 as builder
+ ---> ef89ef5c42a9
+Step 2/10 : RUN mkdir -p /go/src/test
+ ---> Using cache
+ ---> 39e711fa03f1
+Step 3/10 : WORKDIR /go/src/test
+ ---> Using cache
+ ---> 7d6ea9deb09c
+Step 4/10 : COPY main.go .
+ ---> Using cache
+ ---> 2e624bb32ded
+Step 5/10 : RUN CGO_ENABLED=O GOOS=linux go build -o app .
+ ---> Using cache
+ ---> f1470be330ef
+Step 6/10 : FROM alpine:latest
+ ---> c059bfaa849c
+Step 7/10 : RUN apk --no-cache add ca-certificates
+ ---> Using cache
+ ---> 1b193492186d
+Step 8/10 : WORKDIR /root/
+ ---> Using cache
+ ---> b4115dc6dc24
+Step 9/10 : COPY --from=builder /go/src/test/app .
+ ---> 5dd727b163e7
+Step 10/10 : CMD ["./app"]
+ ---> Running in eaa846171abb
+Removing intermediate container eaa846171abb
+ ---> c085642da421
+Successfully built c085642da421
+Successfully tagged yeasy/test-multistage:latest
+
+[root@192 ~]# docker run --rm yeasy/test-multistage:latest
+Hello, Docker
+```
+
+查看生成的最终镜像，大小只有 7.96MB: 
+
+```shell
+[root@192 ~]# docker images | grep yeasy/test-multistage
+yeasy/test-multistage       latest    c085642da421   2 minutes ago   7.96MB
+```
+
+# 8.4 最佳实践
+
+所谓最佳实践，就是从需求出发，来定制适合自己、高效方便的镜像。 首先，要尽量吃透每个指令的含义和执行效果，多编写一些简单的例子进行测试，弄清 楚了再撰写正式的 Dockerfile 。此外， Docker Hub 官方仓库中提供了大量的优秀镜像和对应 Dockefile, 可以通过阅读它们来学习如何撰写高效的 Dockerfile。
+
+笔者在应用过程中，也总结了一些实践经验。建议读者在生成镜像过程中，尝试从如下 角度进行思考，完善所生成镜像：
+
+- **精简镜像用途**：尽量让每个镜像的用途都比较集中单一，避免构造大而复杂、多功能 的镜像；
+- 选用合适的基础镜像：容器的核心是应用。选择过大的父镜像（如 ubuntu系统镜像） 会造成最终生成应用镜像的擁肿，推荐选用瘦身过的应用镜像（如 node:slim) ，或 者较为小巧的系统镜像（如 alpine、busybox 或debian);
+- **提供注释和维护者信息**： Dockerfile 也是一种代码，需要考虑方便后续的扩展和他人 的使用；
+- **正确使用版本号**：使用明确的版本号信息，如 1.0, 2.0, 而非依赖于默认的 latest。 通过版本号可以避免环境不一致导致的问题；
+- 减少镜像层数：如果希望所生成镜像的层数尽批少，则要尽批合并 RUN、ADD、COPY 指令。通常情况下，多个 RUN 指令可以合并为一条 RUN 指令；
+- **恰当使用多步骤创建 (17.05 ＋版本支持）**：通过多步骤创建，可以将编译和运行等过程分开，保证最终生成的镜像只包括运行应用所需要的最小化环境。当然，用户也可 以通过分别构造编译镜像和运行镜像来达到类似的结果，但这种方式需要维护多个 Dockerfile
+- 使**用 .dockerignore 文件**：使用它可以标记在执行 docker build 时忽略的路径和 文件，避免发送不必要的数据内容，从而加快整个镜像创建过程。
+- **及时删除临时文件和缓存文件**：特别是在执行 apt-get 指令后，／var/cache/apt 下面会缓存了一些安装包；
+- **提高生成速度**：如合理使用 cache, 减少内容目录下的文件，或使用 .dockerignore  文件指定等；
+- **调整合理的指令顺序**：在开启 cache 的情况下，内容不变的指令尽量放在前面，这样 可以尽量复用；
+- **减少外部源的干扰**：如果确实要从外部引入数据，需要指定持久的地址，并带版本信 息等，让他人可以复用而不出错。
