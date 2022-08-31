@@ -254,3 +254,206 @@ total 4
 -rw-r--r--. 1 root root 294 Aug 30 15:21 index.html
 ```
 
+# 11.2 Nginx
+
+Nginx （发音为 “engine-x”) 是一款功能强大的开源 反向代理服务器，支持 HTTP、HTTPS、SMTP、POP3、IMAP 等协议。它也可以作为负载均衡器、 HTTP 缓存或 Web 服务器。 Nginx 一开始就专注于高并发和高性能的应用场景。它使用类 BSD 开源协议，支持 Linux、BSD、Mac、Solaris、AIX 等类 Unix 系统，同时也有 Windows 上的移植版本。
+
+Nginx 特性如下：
+
+- **热部署**：采用 master 管理进程与 worker 工作进程的分离设计，支持热部署。在不间 断服务的前提下，可以直接升级版本。也可以在不停止服务的情况下修改配置文件， 更换日志文件等。
+- **高并发连接**： Nginx 可以轻松支持超过 100K 的并发，理论上支持的并发连接上限取决于机器内存。
+- **低内存消耗**：在一般的情况下， 10K 个非活跃的 HTTP Keep -Alive连接在 Nginx 中仅 消耗 2.5MB 的内存，这也是 Nginx 支持高并发连接的基础。
+- **响应快**：在正常的情况下，单次请求会得到更快的响应。在高峰期， Nginx 可以比其 他的 Web 服务器更快地响应请求。
+- **高可靠性**： Nginx 是一个高可靠性的 Web 服务器，这也是用户为什么选择 Nginx 基本条件，现在很多的网站都在使用 Nginx, 足以说明 Nginx 的可靠性。高可靠性来自其核心框架代码的优秀设计和实现。
+
+本节将首先介绍 Nginx 官方发行版本的镜像生成，然后介绍第三方发行版 Tengine 镜像的生成。
+
+## 1. 使用 DockerHub 镜像
+
+可以使用 docker run 指令直接运行官方 Nginx 镜像：
+
+```shell
+[root@192 ~]# docker run -d -p 80:80 --name webserver nginx
+...
+c7685222532ca2184c24127cc7d880a6f6ab6376b9fa46976dc2cb5b7f4c4852
+```
+
+然后使用 docker ps 指令查看当前运行的容器：
+
+```shell
+[root@192 ~]# docker ps
+CONTAINER ID   IMAGE     COMMAND                  CREATED          STATUS          PORTS                               NAMES
+c7685222532c   nginx     "/docker-entrypoint.…"   27 seconds ago   Up 24 seconds   0.0.0.0:80->80/tcp, :::80->80/tcp   webserver
+```
+
+目前 Nginx 容器已经在 0. 0. 0. 0: 80 启萌映射了 80 端口，此时可以打开刻览器访间此地址，就可以看到 Nginx 输出的页面：
+
+![image-20220831223935798](.\image\11-docker-nginx-01.png)
+
+1.9版本后的镜像支持 debug 模式，镜像包含 nginx debug, 可以支持更丰富的 log 信息：
+
+```shell
+docker run --name my-nginx -v /host/path/nginx.conf:/etc/nginx/nginx.conf:ro -d nginx nginx-debug -g 'daemon off;'
+```
+
+## 2. 自定义web页面
+
+首先，新建 index.html 文件，内容如下：
+
+```html
+<html>
+<title> text </title>
+<body> 
+    <div> 
+        hello world 
+    </div> 
+</body> 
+</html> 
+```
+
+然后使用 docker [container] run 指令运行，并将 index.html 文件挂载至容器 中，即可看到显示自定义的页面。
+
+```shell
+[root@192 ~]# [root@192 nginx]# docker run --name nginx-container -p 80:80 -v $(pwd)/index.html:/usr/share/nginx/html/index.html:ro -d nginx
+```
+
+另外，也可以使用 Dockerfile 来构建新镜像。 Dockerfile 内容如下：
+
+```dockerfile
+FROM nginx
+COPY ./index.html /usr/share/nginx/html/
+```
+
+构建my-nginx
+
+```shell
+[root@192 nginx]# docker build -t my-nginx .
+Sending build context to Docker daemon  3.072kB
+...
+Successfully built 94868f6da27d
+Successfully tagged my-nginx:latest
+```
+
+运行
+
+```shell
+[root@192 nginx]# docker run -itd --name nginx-container-2 -p 80:80 my-nginx
+```
+
+(1) 使用自定义的dockerfile
+
+```dockerfile
+FROM sshd:dockerfile
+# 下面是一些创建者的基本信息
+MAINTAINER docker_user(1583409404@qq.com)
+# 安装 nginx, 设置 nginx 以非 daemon 方式启动。
+RUN apt-get install -y nginx && \
+	apt-get -y install tzdata && \
+	rm -rf /var/lib/apt/lists/* && \
+	echo "\ndaemon off;" >> /etc/nginx/nginx.conf && \
+	chown -R www-data:www-data /var/lib/nginx
+	
+# 注意这里要更改系统的时区设置，因为在 Web 应用中经常会用到时区这个系统变量，默认 Ubun 的设置会让你的应用程序发生不可思议的效果
+RUN echo "Asia/Shanghai" > /etc/timezone && \
+	dpkg-reconfigure -f noninteractive tzdata
+	
+# 添加用户的脚本，并设置权限，这会覆盖之前放在这个位置的脚本
+ADD run.sh /run.sh
+RUN chmod 755 /*.sh
+
+# 定义可以被挂载的目录，分别是虚拟主机的挂载目录、证书目录、配置目录、和日志目录
+VOLUME  ["/etc/nginx/sites-enabled", "/etc/nginx/certs", "/etc/nginx/conf.d", "/var/log/nginx"]
+
+# 定义工作目录
+WORKDIR /etc/nginx
+
+# 定义输出命令
+CMD ["/run.sh"]
+
+# 定义输出端口
+EXPOSE 80
+EXPOSE 443
+```
+
+(2) 查看run.sh 脚本文件内容
+
+```shell
+#!/bin/bash 
+/usr/sbin/sshd & 
+/usr/sbin/nginx 
+```
+
+(3) 创建镜像
+
+```shell
+[root@192 nginx]# docker build -t nginx:stable .
+...
+Successfully built 122fba6facd5
+Successfully tagged nginx:stable
+```
+
+(4) 测试
+
+启动容器，查看内部的 80 端口被映射到本地的 49154 端口：
+
+```shell
+
+[root@192 nginx]# docker run -d -P nginx:stable
+6babffdfa8d982d3477fa9f8c5b0bc188665b9fbd13602f6fc5a7860c18272d7
+[root@192 nginx]# docker ps
+CONTAINER ID   IMAGE          COMMAND     CREATED         STATUS         PORTS                                                                                                                         NAMES
+6babffdfa8d9   nginx:stable   "/run.sh"   3 seconds ago   Up 2 seconds   0.0.0.0:49155->22/tcp, :::49155->22/tcp, 0.0.0.0:49154->80/tcp, :::49154->80/tcp, 0.0.0.0:49153->443/tcp, :::49153->443/tcp   unruffled_lehmann
+```
+
+```shell
+[root@192 nginx]# curl 127.0.0.1:49154   # 将看到nginx的index.html页面内容
+
+```
+
+## 3. 参数优化
+
+为了能充分发挥 Nginx 的性能，用户可对系统内核参数做一些洞整。下面是一份常见的适合运行 Nginx 服务器的内核优化参数：
+
+```shell
+net.ipv4.ip_forward = 0
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.default.accept_source_route = 0
+kernel.sysrq = 0
+kernel.core_uses_pid = 1
+net.ipv4.tcp_syncookies = 1
+kernel.msgmnb = 65536
+kernel.msgmax = 65536
+kernel.shmmax = 68719476736
+kernel.shmall = 4294967296
+net.ipv4.tcp_max_tw_buckets = 6000
+net.ipv4.tcp_sack = 1
+net.ipv4.tcp_window_scaling = 1
+net.ipv4.tcp_rmem = 4096 87380 4194304
+net.ipv4.tcp_wmem = 4096 16384 4194304
+net.core.wmem_default = 8388608
+net.core.rmem_default = 8388608
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.core.netdev_max_backlog = 262144
+net.core.somaxconn = 262144
+net.ipv4.tcp_max_orphans = 3276800
+net.ipv4.tcp_max_syn_backlog = 262144
+net.ipv4.tcp_timestamps = 0
+net.ipv4.tcp_synack_retries = 1
+net.ipv4.tcp_syn_retries = 1
+net.ipv4.tcp_tw_recycle = 1
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_mem = 94500000 915000000 927000000
+net.ipv4.tcp_fin_timeout = 1
+net.ipv4.tcp_keepalive_time = 30
+net.ipv4.ip_local_port_range = 1024 65000
+```
+
+## 4. 相关资源
+
+Nginx 的相关资源如下：
+
+-  Nginx 官网： https://www.nginx.com
+- Nginx 官方仓库： https://github.com/nginx/nginx
+- Nginx 官方镜像： https://hub.docker.com/_/nginx/
+- Nginx 官方镜像仓库： https://github.com/nginxinc/docker-nginx
