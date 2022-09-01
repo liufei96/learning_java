@@ -457,3 +457,179 @@ Nginx 的相关资源如下：
 - Nginx 官方仓库： https://github.com/nginx/nginx
 - Nginx 官方镜像： https://hub.docker.com/_/nginx/
 - Nginx 官方镜像仓库： https://github.com/nginxinc/docker-nginx
+
+# 11.3 Tomcat
+
+Tomcat 是由 Apache 软件基金会下属的 Jakarta 项目开发的一个 Servlet 容器，按照 Sun Microsystems 提供的技术规范，实现了对 Servlet、JavaServer Page (JSP) 的支持。同时，它提供了作为 Web 服务器的一些特有功能，如 Tomcat 管理和控制平台、安全歧管理和 Tomcat 阀等。由千 Tomcat 本身也内含 了一个 HTTP 服务器，也可以当作单独的 Web 服务器来使用。
+
+下面将以 sun_jdk 1.8 tomcat 8.0 ubuntu 18.04 环境为例介绍如何定制 Tomcat 镜像。
+
+## 1. 准备工作
+
+创建 tomcat_8.0_jdk1.8 文件夹，从 www.oracle.com 网站上下载 sun_jdk 1. 8  压缩包，并解压。
+
+创建 Dockerfile 和 run. sh 文件：
+
+```shell
+[root@192 dokcer]# mkdir tomcat8.0_jdk1.8
+[root@192 dokcer]# cd tomcat8.0_jdk1.8/
+[root@192 tomcat8.0_jdk1.8]# touch Dockerfile run.sh
+```
+
+解压后，tomcat_8.0_jdk1.8 目录下的文件结构如下
+
+```shell
+[root@192 tomcat8.0_jdk1.8]# ll
+总用量 0
+drwxr-xr-x. 9 root root 220 9月   1 22:32 apache-tomcat-8.5.82
+-rw-r--r--. 1 root root   0 9月   1 22:29 Dockerfile
+drwxr-xr-x. 8   10  143 255 7月  22 2017 jdk1.8.0_144
+-rw-r--r--. 1 root root   0 9月   1 22:29 run.sh
+```
+
+## 2. Dockerfile 文件和其他脚本文件
+
+Dockerfile 文件内容如下：
+
+```shell
+FROM sshd:dockerfile
+
+# 下面是一些创建者的基本信息
+MAINTAINER docker_user(1583409404@qq.com)
+
+# 设置环境变量，所有操作都是非交互式的
+ENV DEBIAN_FRONTEND noninteractive
+
+# 安装跟 tomcat 用户认证相关的软件
+RUN apt-get -y install tzdata && \
+	apt-get install -yq --no-install-recommends wget pwgen ca-certificates && \
+	apt-get clean && \
+	rm -rf /var/lib/apt/lists/*
+	
+# 注意这里要更改系统的时区设置，因为在 Web 应用中经常会用到时区这个系统变量，默认 Ubun 的设置会让你的应用程序发生不可思议的效果
+RUN echo "Asia/Shanghai" > /etc/timezone && \
+	dpkg-reconfigure -f noninteractive tzdata
+	
+# 设置环境变量
+ENV CATALINA_HOME /tomcat
+ENV JAVA_HOME /jdk1.8.0_144
+
+# 复制tomcat和jdk到镜像中
+COPY apache-tomcat-8.5.82 /tomcat
+COPY jdk1.8.0_144 /jdk1.8.0_144
+COPY manager.xml ${CATALINA_HOME}/conf/Catalina/localhost/
+
+ADD create_tomcat_admin_user.sh /create_tomcat_admin_user.sh
+ADD run.sh /run.sh
+RUN chmod +x /*.sh
+RUN chmod +x /tomcat/bin/*.sh
+
+EXPOSE 8080
+CMD ["/run.sh"]
+```
+
+创建tomcat 用户和密码脚本文件 create_tomcat＿admin_user.sh 文件，内容为：
+
+```shell
+#!/bin/bash 
+if [ -f /.tomcat_admin_created ]; then
+	echo "Tomcat 'admin' user already created"
+	exit 0
+fi
+#generate password 
+PASS=${TOMCAT_PASS:-$(pwgen -s 12 1)} 
+word=$([ ${TOMCAT_PASS} ] && echo "preset" || echo "random") 
+
+echo "=> Creating and admin user with a ${_word} password in Tomcat"
+sed -i -r 's/<\/tomcat-users>//' ${CATALINA_HOME}/conf/tomcat-users.xml 
+echo '<role rolename="manager-gui"/>' >> ${CATALINA_HOME}/conf/tomcat-users.xml 
+echo '<role rolename="manager-script"/>' >> ${CATALINA_HOME}/conf/tomcat-users.xml 
+echo '<role rolename="manager-jmx"/>' >> ${CATALINA_HOME}/conf/tomcat-users.xml 
+echo '<role rolename="admin-gui"/>' >> ${CATALINA_HOME}/conf/tomcat-users.xml 
+echo '<role rolename="admin-script"/>' >> ${CATALINA_HOME}/conf/tomcat-users.xml 
+echo "<user username=\"admin\" password=\"${PASS}\" roles=\"manager-gui,manager-script， manager-jmx,admin-gui,admin-script\"/>" >> ${CATALINA_HOME}/conf/tomcat-users.xml 
+echo '</tomcat-users>' >> ${CATALINA_HOME}/conf/tomcat-users.xml 
+echo "=> Done!" 
+touch /.tomcat_admin_created
+echo "========================================================================"
+echo "You can now configure this Tomcat server using:" 
+echo ""
+echo " admin:${PASS}" 
+echo ""
+echo "========================================================================"
+```
+
+创建manager.xml （主要是为了登录）
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Context privileged="true" antiResourceLocking="false"
+         docBase="${catalina.home}/webapps/manager">
+    <Valve className="org.apache.catalina.valves.RemoteAddrValve" allow="^.*$" />
+</Context>
+```
+
+编写 run. sh 脚本文件，内容为：
+
+```shell
+#!/bin/bash
+if [ ! -f /.tomcat＿admin_created ]; then 
+	/create_tomcat_admin_user.sh 
+fi 
+/usr/sbin/sshd -D & 
+exec ${CATALINA_HOME}/bin/catalina.sh run
+```
+
+## 3. 创建和测试镜像
+
+通过下面的命令创建镜像tomcat8.0:jdk1.8
+
+```shell
+[root@192 tomcat8.0_jdk1.8]# docker build -t tomcat8.0:jdk1.8 .
+...
+Successfully built f6124b204f93
+Successfully tagged tomcat8.0:jdk1.8
+```
+
+启动一个 tomcat 容器进行测试：
+
+```shell
+[root@192 tomcat8.0_jdk1.8]# docker run -d -P tomcat8.0:jdk1.8
+
+
+[root@192 tomcat8.0_jdk1.8]# docker ps
+CONTAINER ID   IMAGE              COMMAND     CREATED         STATUS         PORTS                                                                                  NAMES
+5ff16426e4a3   tomcat8.0:jdk1.8   "/run.sh"   7 seconds ago   Up 6 seconds   0.0.0.0:49174->22/tcp, :::49174->22/tcp, 0.0.0.0:49173->8080/tcp, :::49173->8080/tcp   gallant_jemison
+```
+
+![image-20220901231705823](.\image\11-docker-tomcat.png)
+
+从docker logs 可以得到密码
+
+```shell
+root@192 tomcat8.0_jdk1.8]# docker logs 5ff16426e4a3
+=> Creating and admin user with a  password in Tomcat
+=> Done!
+========================================================================
+You can now configure this Tomcat server using:
+
+ admin:0lOrfTbkNJHB
+...
+```
+
+点击页面的 Manager App，输入用户名和密码，登录之后，进入如下页面。
+
+![image-20220902004806844](.\image\11-docker-tomcat-manager.png)
+
+
+
+注意：在实际环境中，可以通过使用 -v 参数来挂载 Tomcat 的日志文件、程序所在目录、 以及与 Tomcat 相关的配置。
+
+## 4. 相关资源
+
+Tomcat 的相关资源如下：
+
+- Tomcat 官网： http://tomcat.apache.org/
+- Tomcat 官方仓库： https://github.com/apache/tomcat 
+- Tomcat 官方镜像： https://huh.docker.com/_/tomcat/ 
+- Tomcat 官方镜像仓库： https://github.com/docker-library/tomcat
