@@ -633,3 +633,210 @@ Tomcat 的相关资源如下：
 - Tomcat 官方仓库： https://github.com/apache/tomcat 
 - Tomcat 官方镜像： https://huh.docker.com/_/tomcat/ 
 - Tomcat 官方镜像仓库： https://github.com/docker-library/tomcat
+
+# 11.5 LAMP 
+
+LAMP (Linux-Apache-MySQL-PHP) 是目前流行的 Web 工具栈， 其中包括： Linux 操作系统， Apache 网络服务器， MySQL 数据库， Perl、PHP 或者 Python ．编程语言。其组成工具均是成熟的开源软件， LR 被大最网站所采用。和 Java/J2EE 架构相比， LAMP 具有 Web 资源丰富、轻量、快速开发等特点；和微软的 .NET 架构相比， LAMP 更具有通用、跨平台、高性能、 低价格的优势。因此 LAMP 技术栈得到了广泛的应用。
+
+> 现在也有人用 Nginx 替换 Apache, 称为 LNMP 或 LEMP, 是十分类似的技术栈，并不影响整个技术框架的选型原则。
+
+## 1. 使用官方镜像
+
+用户可以使用自定义 Dockerfile 或者 Compose 方式运行 LAMP, 同时社区也提供了十分 成熟的 linode/lamp 和 tutum/lamp 镜像。
+
+### (1) 使用 linode/lamp 镜像
+
+首先，执行docker [container] run指令，直接运行镜像，并进入容器内部bash shell：
+
+```shell
+[root@192 ~]# docker run p- 80:80 -t -i linode/lamp /bin/bash
+root@a449f11266a6:/#
+```
+
+在容器内部 shell 启动 Apache 以及 MySQL 服务：
+
+```shell
+root@a449f11266a6:/# service apache2 start
+ * Starting web server apache2                                                                                                                                                       *
+root@a449f11266a6:/# service mysql start
+ * Starting MySQL database server mysqld                                                                                                                                             [ OK ]
+ * Checking for tables which need an upgrade, are corrupt or were
+not closed cleanly.
+```
+
+此时镜像中 Apache、MySQL 服务已经启动，可使用 docker ps 指令查看运行中的容器：
+
+```shell
+[root@192 ~]# docker ps
+CONTAINER ID   IMAGE         COMMAND       CREATED         STATUS         PORTS                               NAMES
+a449f11266a6   linode/lamp   "/bin/bash"   6 minutes ago   Up 6 minutes   0.0.0.0:80->80/tcp, :::80->80/tcp   heuristic_dijkstra
+```
+
+![image-20220903111308964](.\image\11-docker-lamp.png)
+
+### (2) 使用 tutum/lamp 镜像
+
+首先，执行 docker [container] run 指令，直接运行镜像：
+
+```shell
+[root@192 ~]# docker ps
+CONTAINER ID   IMAGE        COMMAND     CREATED          STATUS         PORTS                                                                          NAMES
+76fb089dbf37   tutum/lamp   "/run.sh"   10 seconds ago   Up 6 seconds   0.0.0.0:80->80/tcp, :::80->80/tcp, 0.0.0.0:3306->3306/tcp, :::3306->3306/tcp   zen_turing
+```
+
+![image-20220903111806530](.\image\11-docker-tutum.png)
+
+
+
+
+
+
+
+### (3) 部署自定义PHP应用
+
+默认的容器启动了一个 helloword 应用。读者可以基于此镜像，编辑 Dockerfile 来创建 自定义 LAMP 应用镜像。
+
+在宿主主机上创建新的工作目录 lamp:
+
+```shell
+[root@192 ~]# cd dokcer/
+[root@192 dokcer]# mkdir lamp
+[root@192 dokcer]# cd lamp/
+[root@192 lamp]# touch DOckerfile
+```
+
+在php 目录下里面创建 Dockerfile 文件，内容为：
+
+```dockerfile
+FROM tutum/lamp:latest
+RUN rm -fr /app && git clone https//github.com/username/customapp.git /app
+# 这里替换 https://github.com/username/customapp.git 地址为你自己的项目地址
+EXPOSE 80 3306
+CMD ["/run.sh"]
+```
+
+创建镜像，命名为 my-lamp-app：
+
+```shell
+$ docker build -t my-lamp-app . 
+```
+
+利用新创建镜像启动容器，注意启动时候指定 -d 参数，让容器后台运行：
+
+```shell
+$ docker run -d -p 8080:80 -p 3306:3306 my-lamp-app
+```
+
+在本地主机上使用 curl 命令测试应用程序是不是已经正常响应：
+
+```shell
+$ curl http://127.0.0.1:8080/
+```
+
+## 2. 相关资源
+
+LAMP 的想更换资源如下：
+
+- tutum LAMP 镜像：https://hub.docker.com/r/tutum/lamp/ 
+- linode LAMP 镜像：https://hub.docker.com/r/linode/lamp/ 
+
+# 11.6 持续开发与管理
+
+信息行业日新月异，如何响应不断变化的需求，快速适应和保证软件的质量？持续集成 (Continuous Integration, CI) 正是针对解决这类问题的一种开发实践，它倡导开发团队定期进行 集成验证。集成通过自动化的构建来完成，包括自动编译、发布和测试，从而尽快地发现错误。
+
+持续集成的特点包括：
+
+- 鼓励自动化的周期性的过程，从检出代码、编译构建、运行测试、结果记录、测试统计等都是自动完成的，减少人工干预；
+- 需要有持续集成系统的支持，包括代码托管机制支持，以及集成服务器等。
+
+持续交付 (Continuous Delivery, CD) 则是经典的敏捷软件开发方法的自然延伸，它强调产品在修改后到部署上线的流程要敏捷化、自动化。甚至一些较小的改变也要尽早地部署上线，这与传统软件在较大版本更新后才上线的思路不同。
+
+## 1. Jenkins 及官方镜像
+
+Jenkins 是一个得到广泛应用的持续集成和持续交付的工具。作为 开源软件项目，它旨在提供一个开放易用的持续集成平台。 Jenkins 能实时监控集成中存在的错误，提供详细的日志文件和提醒功能，并用图表的形式形象地展示 项目构建的趋势和稳定性。 Jenkins 特点包括安装配置简单、支持详细的测试报表、分布式构建等。
+
+Jenkis 自2.0 版本推出了 "Pipeline as Code" ，帮助 Jenkins 实现对 CI 和 CD 更好的支持。 通过 Pipeline, 将原本独立运行的多个任务连接起来，可以实现十分复杂的发布流程，如 11-9 所示。
+
+![查看源图像](.\image\11-docker-jenkins.png)
+
+Jenkins 官方在 DockerHub 上提供了全功能的基于官方发布版的 Docker 镜像。可以方便 地使用 docker [container] run 指令一键部署 Jenkins 服务：
+
+```shell
+[root@192 jenkins]# docker run -p 8080:8080 -p 50000:50000 jenkins/jenkins
+...
+
+Jenkins initial setup is required. An admin user has been created and a password generated.
+Please use the following password to proceed to installation:
+
+dce074ed4e11410bb448af81523d37ac
+
+This may also be found at: /var/jenkins_home/secrets/initialAdminPassword
+....
+
+```
+
+使用上面的密码进行登录：dce074ed4e11410bb448af81523d37ac
+
+Jenkins 容器启动成功后，可以打开浏览器访问 8080 端口，查看 Jenkins 管理界面：
+
+![image-20220903161247398](.\image\11-docker-jenkins-index.png)
+
+目前运行的容器中，数据会存储在工作目录 /var/jenkins_ home 中，这包括 Jenkins 中所 有的数据，如插件和配置信息等。如果需要数据持久化，读者可以使用数据卷机制：
+
+```shell
+[root@192 jenkins]# docker run -p 8080:8080 -p 50000:50000 -v /root/dokcer/jenkins/jenkins_home:/var/jenkins_home jenkins/jenkins
+```
+
+## 2. GitLab 及其官方惊醒
+
+GitLab 是一款非常强大的开源源码管理系统。它支持基于 Git 的源码管理、代码评审、 issue 跟踪、活动管理、 wiki页面、持续集成和测试等功能。基于GitLab, 用户可以自己搭建一套类似于 Github 的开发协同 平台。
+
+GitLab 官方提供了社区版本 (GitLab CE) DockerHub 镜像，可以直接使用 docker run  指令运行：
+
+```shell
+docker run -d --hostname gitlab.example.com -p 443:443 -p 80:80 -p 23:23 --name gitlab --restart always --volume /srv/gitlab/config:/etc/gitlab --volume /srv/gitlab/logs:/var/log/gitlab --volume /srv/gitlab/data:/var/opt/gitlab gitlab/gitlab-ce:latest
+```
+
+成功运行镜像后，可以打开浏览器访问 GitLab 服务管理界面
+
+```shell
+# 登录需要账号和密码。默认账号root
+# 密码进入宿主机中查看
+root@gitlab:/# cat /etc/gitlab/initial_root_password
+# WARNING: This value is valid only in the following conditions
+#          1. If provided manually (either via `GITLAB_ROOT_PASSWORD` environment variable or via `gitlab_rails['initial_root_password']` setting in `gitlab.rb`, it was provided before database was seeded for the first time (usually, the first reconfigure run).
+#          2. Password hasn't been changed manually, either via UI or via command line.
+#
+#          If the password shown here doesn't work, you must reset the admin password following https://docs.gitlab.com/ee/security/reset_user_password.html#reset-your-root-password.
+
+Password: P28O8sQcdF4OpIsJNycDciEQRyk35ftMUXEazLL+G4Q=
+
+# NOTE: This file will be automatically deleted in the first reconfigure run after 24 hours.
+```
+
+![image-20220903164208974](.\image\11-docker-gitlab.png)
+
+## 3. 相关资源
+
+Jenkins 的相关资源如下：
+
+- Jenkins 官网： https://jenkins.io/
+- Jenkins 官方仓库： https://github.com/jenkinsci/jenkins/
+- Jenkins 官方镜像： https://huh.docker.com/r/jenkinsci/jenkins/
+- Jenkins 官方镜像仓库： https://github.com/jenkinsci/docker 
+
+GitLab 的相关资源如下：
+
+- GitLab 官网： https://github.com/gitlabhq/gitlabhq
+- GitLab 官方镜像： https://hub.docker.com/r/gitlab/gitlab-ce/
+
+# 11.7 本章小结
+
+本章首先介绍了常见的 Web 服务工具，包括 Apache、Nginx、Tomcat、Jetty, 以及大名 鼎鼎的 LAMP 组合，然后对目前流行的持续开发模式和工具的快速部署进行了讲解。通过这些例子，读者可以快速入门 Web 开发，并再次体验到基于容器模式的开发和部署模式为何如此强大。
+
+笔者认为，包括 Web 服务在内的中间件领域十分适合引入容器技术：
+
+- 中间件服务器是除数据库服务器外的主要计算节点，很容易成为性能瓶颈，所以通常 需要大批量部署，而 Docker 对于批量部署有着许多先天的优势；
+- 中间件服务器结构清晰，在剥离了配置文件、日志、代码目录之后，容器几乎可以处于零增长状态，这使得容器的迁移和批量部署更加方便；
+
+- 中间件服务器很容易实现集群，在使用硬件的 F5 、软件的 Nginx 等负载均衡后，中 间件服务器集群变得非常容易。
